@@ -1,0 +1,59 @@
+---
+title: "Course Project for Machine Learning"
+author: "Canqing YU"
+date: "Sunday, July 27, 2014"
+output: html_document
+---
+
+#### Read in data
+
+```{r read, cache=TRUE}
+setwd("K:/MOOCs - Data Science Specialization/8. Practical Machine Learning/Writeup")
+if (!file.exists("pml-training.csv")){download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", destfile="pml-training.csv", method="curl")}
+if (!file.exists("pml-testing.csv")){download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", destfile="pml-testing.csv", method="curl")}
+training <- read.csv("pml-training.csv")
+testing <- read.csv("pml-testing.csv")
+```
+
+#### Explore data
+```{r explore}
+dim(training)
+dim(testing)
+clean1 <- training[,!apply(training,2,anyNA)] #delete NA columns
+table(apply(clean1,2,function(x)sum(x=='')==0))
+clean2 <- clean1[,apply(clean1,2,function(x){sum(x=='')==0})] #delete empty columns 
+colnames(clean2)
+clean3 <- clean2[,-(1:7)] #remove irrelarent variables
+names(clean3)
+```
+#### Prepare data
+```{r}
+library(caret)
+inTrain <- createDataPartition(y=clean3$classe, p=0.6, list=FALSE)
+train <- clean3[inTrain,]
+test <- clean3[-inTrain,]
+```
+
+
+#### Random Forest
+```{r randomForest, cache=TRUE}
+library(caret)
+modFit <- train(classe~., method='rf', data=train, prox=TRUE)
+getTree(modFit$finalModel,k=2)
+
+```
+
+#### Cross validation
+```{r pred, cache=TRUE}
+pred_train <- predict(modFit, newdata=train)
+confusionMatrix(pred_train,train$classe)
+pred_test <- predict(modFit, newdata=test)
+confusionMatrix(pred_test,test$classe)
+```
+
+What you should submit
+
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases. 
+
+1. Your submission should consist of a link to a Github repo with your R markdown and compiled HTML file describing your analysis. Please constrain the text of the writeup to < 2000 words and the number of figures to be less than 5. It will make it easier for the graders if you submit a repo with a gh-pages branch so the HTML page can be viewed online (and you always want to make it easy on graders :-).
+2. You should also apply your machine learning algorithm to the 20 test cases available in the test data above. Please submit your predictions in appropriate format to the programming assignment for automated grading. See the programming assignment for additional details. 
