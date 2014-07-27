@@ -5,7 +5,11 @@ date: "Sunday, July 27, 2014"
 output: html_document
 ---
 
+This is the course project for *Practical Machine Learning* in data science specialization. The *Weight Lifting Exercise Dataset* for this project come from this source: [http://groupware.les.inf.puc-rio.br/har](http://groupware.les.inf.puc-rio.br/har).
+
 #### Read in data
+
+First of all, read in the training and testing dataset.
 
 ```{r read, cache=TRUE}
 setwd("K:/MOOCs - Data Science Specialization/8. Practical Machine Learning/Writeup")
@@ -15,45 +19,69 @@ training <- read.csv("pml-training.csv")
 testing <- read.csv("pml-testing.csv")
 ```
 
-#### Explore data
-```{r explore}
+#### Data exploration
+
+Preliminary data cleaning and exploration:
+
+- delete the `NA` variables
+- delete the variables which have a large proportion of empty values
+- delete irrelevant variables
+
+```{r explore, cache=TRUE}
 dim(training)
 dim(testing)
 clean1 <- training[,!apply(training,2,anyNA)] #delete NA columns
-table(apply(clean1,2,function(x)sum(x=='')==0))
 clean2 <- clean1[,apply(clean1,2,function(x){sum(x=='')==0})] #delete empty columns 
-colnames(clean2)
 clean3 <- clean2[,-(1:7)] #remove irrelarent variables
-names(clean3)
+colnames(clean3)
 ```
-#### Prepare data
-```{r}
-library(caret)
+
+#### Split data
+
+Split the `training` data set into `train` and `test` data sets, with the proportions of 60% and 40%. So we could estimate the out-of-sample error.
+
+```{r splitdata, cache=TRUE}
+suppressPackageStartupMessages(library(caret))
+set.seed(20140727)
 inTrain <- createDataPartition(y=clean3$classe, p=0.6, list=FALSE)
 train <- clean3[inTrain,]
 test <- clean3[-inTrain,]
 ```
 
+#### Model fitting
 
-#### Random Forest
-```{r randomForest, cache=TRUE}
-library(caret)
-modFit <- train(classe~., method='rf', data=train, prox=TRUE)
-getTree(modFit$finalModel,k=2)
+In order to boost the process of computing, `doParallel` package was used to create a cluster for multiple cores. As for the model fitting, `caret` package was used to apply the `random forest` method to train the machine learning algorithm. 
 
+```{r randomForest}
+suppressPackageStartupMessages(library(caret))
+suppressPackageStartupMessages(library(doParallel))
+cl<-makeCluster(6)
+registerDoParallel(cl)
+fitControl <- trainControl(method='cv', number=3)
+modFit <- train(classe~., method='rf', trControl=fitControl, data=train)
+stopCluster(cl)
 ```
 
 #### Cross validation
-```{r pred, cache=TRUE}
-pred_train <- predict(modFit, newdata=train)
-confusionMatrix(pred_train,train$classe)
-pred_test <- predict(modFit, newdata=test)
-confusionMatrix(pred_test,test$classe)
+
+As we could see in the results, a perfect accuracy in the `train` data set, and 99.2% in the `test` data set.
+
+```{r pred}
+pred_train <- predict(modFit, newdata=train[,-53])
+confusionMatrix(pred_train, train$classe)
+pred_test <- predict(modFit, newdata=test[,-53])
+confusionMatrix(pred_test, test$classe)
+plot(varImp(modFit), main="Variable importance of 52 in prediction model")
 ```
 
-What you should submit
+From the variable importance plot, we could see the `roll_belt` is most important variable.
 
-The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases. 
+#### Prediction with test data set
 
-1. Your submission should consist of a link to a Github repo with your R markdown and compiled HTML file describing your analysis. Please constrain the text of the writeup to < 2000 words and the number of figures to be less than 5. It will make it easier for the graders if you submit a repo with a gh-pages branch so the HTML page can be viewed online (and you always want to make it easy on graders :-).
-2. You should also apply your machine learning algorithm to the 20 test cases available in the test data above. Please submit your predictions in appropriate format to the programming assignment for automated grading. See the programming assignment for additional details. 
+Apply the algorithm generated from `training` data set by the machine learning model, we could predict the 20 samples in the `testing` data set.
+
+```{r predtest, cache=TRUE}
+answers <- as.character(predict(modFit, testing))
+answers
+```
+
